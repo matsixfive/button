@@ -11,7 +11,9 @@
     text-align: center;
     /* padding: 1em; */
     /* max-width: 240px; */
-    min-height: 100%;
+    min-height: 100vh;
+    min-height: fill-avaliable;
+    min-height: --webkit-fill-avaliable;
     margin: 0 auto;
     background: #e8dfca;
   }
