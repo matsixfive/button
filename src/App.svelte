@@ -20,11 +20,12 @@
 		margin: 0 auto;
 		background: #e8dfca;
 
+		transition: background-color 100ms ease-in-out;
+
 		&.flash {
-			background: #faf2e1;
+			background: #aebdca;
 		}
 	}
-
 
 	.win-container {
 		position: absolute;

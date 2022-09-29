@@ -1,6 +1,6 @@
 import { writable } from "svelte/store";
 
-export const cooldown = 10000; // cooldown in ms
+export const cooldown = 5000; // cooldown in ms
 
 const storedReady = localStorage.getItem("ready");
 

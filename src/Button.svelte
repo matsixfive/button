@@ -20,12 +20,35 @@
 		newClick();
 	};
 
+	const bezier = (t: number) => {
+		// https://www.desmos.com/calculator/ebdtbxgbq0
+
+		const v2 = 0;
+		const c2 = 0.5;
+		const v3 = 1;
+		const c3 = 0.5;
+
+		// const y_1 = (t: number) =>
+		// 	1 - (((t - t ** 3) / (3 * t) - t * v3) / v2) ** (1 / 2);
+
+		// const t_1 = t;
+		// t = y_1(t);
+
+		const x = 3 * t * (1 - t) ** 2 * c2 + 3 * t ** 2 * (1 - t) * c3 + t ** 3;
+		const y = 3 * t * (1 - t) ** 2 * v2 + 3 * t ** 2 * (1 - t) * v3 + t ** 3;
+
+		// console.log(t_1, x, t);
+
+		// console.log(y)
+		return x;
+	};
+
 	const updateProgress = () => {
 		const progressInterval = setInterval(() => {
-			progress = (($ready - Date.now()) / cooldown) * 100;
+			progress = 100 - bezier(1 - ($ready - Date.now()) / cooldown) * 100;
 			progress = Number(progress.toFixed(2)); //truncate to 2 d.p
 
-			if (0 > progress || progress > 100) {
+			if ($ready - Date.now() < 0) {
 				clearInterval(progressInterval);
 				progress = Math.min(Math.max(progress, 0), 100); // clamp between 0 and 100
 			}
@@ -72,11 +95,7 @@
 
 	socket.onmessage = (message) => {
 		console.log(message.data);
-		/* if (message.data === "win") {
-      $wins += 1;
-    } else if (message.data === "new") {
-      newClick();
-    } */
+
 		switch (message.data) {
 			case "new":
 				newClick();
@@ -88,7 +107,7 @@
 				recievedConfirmation();
 				break;
 			default:
-				console.log("ws error?!");
+				console.error("ws error?!", message.data);
 				break;
 		}
 	};
