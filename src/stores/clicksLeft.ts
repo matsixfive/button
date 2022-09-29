@@ -6,10 +6,14 @@ const storedClicksLeft = localStorage.getItem("clicksLeft");
 
 let storedClicksLeftNum: number;
 
-storedClicksLeftNum = parseInt(storedClicksLeft) || defaultClicks;
+storedClicksLeftNum = isNaN(parseInt(storedClicksLeft, 10))
+  ? defaultClicks
+  : parseInt(storedClicksLeft, 10);
 
-export const clicksLeft = writable(Math.min(storedClicksLeftNum, defaultClicks));
+export const clicksLeft = writable(
+  Math.min(storedClicksLeftNum, defaultClicks)
+);
 
-clicksLeft.subscribe((value) => {
-	localStorage.setItem("clicksLeft", value.toString());
+clicksLeft.subscribe(value => {
+  localStorage.setItem("clicksLeft", value.toString());
 });

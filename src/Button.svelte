@@ -1,257 +1,243 @@
 <script lang="ts">
-	import { ready, cooldown } from "./stores/ready";
-	import { clicksLeft } from "./stores/clicksLeft";
-	import { wins } from "./stores/wins";
+  import { ready, cooldown } from "./stores/ready";
+  import { clicksLeft } from "./stores/clicksLeft";
+  import { wins } from "./stores/wins";
+  import JSConfetti from "js-confetti";
 
-	let shake = true;
-	export let flash = false;
-	let progress = 0;
+  const jsConfetti = new JSConfetti();
 
-	let confirmed = true;
+  let shake = true;
+  export let flash = false;
+  let progress = 0;
 
-	const recievedConfirmation = () => {
-		confirmed = true;
+  let confirmed = true;
 
-		$clicksLeft--;
+  const recievedConfirmation = () => {
+    confirmed = true;
 
-		ready.set(Date.now() + cooldown);
+    $clicksLeft--;
 
-		updateProgress();
-		newClick();
-	};
+    ready.set(Date.now() + cooldown);
 
-	const bezier = (t: number) => {
-		// https://www.desmos.com/calculator/ebdtbxgbq0
+    updateProgress();
+    newClick();
+  };
 
-		const v2 = 0;
-		const c2 = 0.5;
-		const v3 = 1;
-		const c3 = 0.5;
+  const easeInOutCubic = (x: number): number => {
+    return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+  };
 
-		// const y_1 = (t: number) =>
-		// 	1 - (((t - t ** 3) / (3 * t) - t * v3) / v2) ** (1 / 2);
+  const sendMessage = (message: string) => {
+    console.log("sending", message, socket);
 
-		// const t_1 = t;
-		// t = y_1(t);
+    // reopen websocket if closed
+    // https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/readyState#value
+    if (!socket || socket.readyState !== 1) {
+      console.log("reopening");
+      openSocket();
+      socket.onopen = () => socket.send(message);
+    } else {
+      console.log("sending");
+      socket.send(message);
+    }
+  };
 
-		const x = 3 * t * (1 - t) ** 2 * c2 + 3 * t ** 2 * (1 - t) * c3 + t ** 3;
-		const y = 3 * t * (1 - t) ** 2 * v2 + 3 * t ** 2 * (1 - t) * v3 + t ** 3;
+  const updateProgress = () => {
+    if ($clicksLeft > 0) {
+      const progressInterval = setInterval(() => {
+        progress =
+          100 - easeInOutCubic(1 - ($ready - Date.now()) / cooldown) * 100;
+        progress = Number(progress.toFixed(4)); //truncate to 4 d.p
 
-		// console.log(t_1, x, t);
+        if ($ready - Date.now() < 0) {
+          clearInterval(progressInterval);
+          progress = Math.min(Math.max(progress, 0), 100); // clamp between 0 and 100
+        }
+      }, 16); //60fps
+    } else {
+      progress = 0;
+    }
+  };
 
-		// console.log(y)
-		return x;
-	};
+  updateProgress();
 
-	const updateProgress = () => {
-		const progressInterval = setInterval(() => {
-			progress = 100 - bezier(1 - ($ready - Date.now()) / cooldown) * 100;
-			progress = Number(progress.toFixed(2)); //truncate to 2 d.p
+  const newClick = () => {
+    flash = true;
 
-			if ($ready - Date.now() < 0) {
-				clearInterval(progressInterval);
-				progress = Math.min(Math.max(progress, 0), 100); // clamp between 0 and 100
-			}
-		}, 16); //60fps
-	};
+    setTimeout(() => {
+      flash = false;
+    }, 100);
+  };
 
-	updateProgress();
+  const handleClick = () => {
+    // shake button
+    if ($clicksLeft === 0) {
+      shake = false;
+      setTimeout(() => {
+        shake = true;
+      }, 1);
+    }
 
-	const newClick = () => {
-		flash = true;
+    if ($clicksLeft > 0 && $ready <= Date.now() && confirmed) {
+      // socket.send("add");
 
-		setTimeout(() => {
-			flash = false;
-		}, 200);
-	};
+      // add message to be sent to list
+      sendMessage("add");
 
-	const handleClick = () => {
-		// shake button
-		if ($clicksLeft === 0) {
-			shake = false;
-			setTimeout(() => {
-				shake = true;
-			}, 1);
-		}
+      confirmed = false;
+    } else {
+      console.log("not ready");
+    }
+  };
 
-		if ($clicksLeft > 0 && $ready <= Date.now() && confirmed) {
-			// send click to server...
-			socket.send("add");
-			confirmed = false;
-		} else {
-			console.log("not ready");
-		}
-	};
+  let socket: WebSocket;
+  const openSocket = () => {
+    socket = new WebSocket("ws://192.168.178.101:8999");
 
-	let socket: WebSocket;
-	const openSocket = () => {
-		socket = new WebSocket("ws://localhost:8999");
-	};
-	openSocket();
+    socket.onclose = () => openSocket();
 
-	socket.onopen = () => console.log("opened");
+    socket.onmessage = message => {
+      console.log(message.data);
 
-	socket.onclose = () => openSocket();
+      switch (message.data) {
+        case "new":
+          newClick();
+          break;
+        case "win":
+          $wins += 1;
 
-	socket.onmessage = (message) => {
-		console.log(message.data);
+          break;
+        case "recieved":
+          recievedConfirmation();
+          break;
+        default:
+          console.error("ws error?!", message.data);
+          break;
+      }
+    };
+  };
+  openSocket();
 
-		switch (message.data) {
-			case "new":
-				newClick();
-				break;
-			case "win":
-				$wins += 1;
-				break;
-			case "recieved":
-				recievedConfirmation();
-				break;
-			default:
-				console.error("ws error?!", message.data);
-				break;
-		}
-	};
+  // socket.onopen = () => console.log("opened");
 
-	let firedFirst = false;
-	wins.subscribe(() => {
-		if (!firedFirst) firedFirst = true;
-		else {
-			console.log("yay!");
-		}
-	});
+  let firedFirst = false;
+  wins.subscribe(() => {
+    if (!firedFirst) firedFirst = true;
+    else {
+      jsConfetti.addConfetti();
+    }
+  });
 </script>
 
 <button
-	class:timeout={$clicksLeft === 0}
-	class:ready={progress === 0 && confirmed === true}
-	class:shake
-	on:click={handleClick}
->
-	<span>
-		{$clicksLeft.toLocaleString()}
-	</span>
-	<div
-		class="progress"
-		data-progress={progress}
-		style={`width: ${progress}%`}
-	/>
+  class:timeout={$clicksLeft <= 0}
+  class:ready={progress === 0 && confirmed === true}
+  class:shake
+  on:click={handleClick}>
+  <span>
+    {$clicksLeft.toLocaleString()}
+  </span>
+  <div
+    class="progress"
+    data-progress={progress}
+    style={`width: ${progress}%`} />
 </button>
 
 {#if $clicksLeft === 0}
-	<p>no more clicks left for today</p>
+  <p>no more clicks left for today</p>
 {/if}
 
 <style lang="scss">
-	$offset: 7px;
-	$blur: 14px;
+  $offset: 7px;
+  $blur: 14px;
 
-	@mixin tan-button {
-		border-radius: 15%;
-		background: #e8dfca;
-		box-shadow: $offset $offset $blur #ccc4b2,
-			calc(-1 * $offset) calc(-1 * $offset) $blur #fffae2,
-			inset $offset $offset $blur transparent,
-			inset calc(-1 * $offset) calc(-1 * $offset) $blur transparent;
+  @mixin tan-button {
+    border-radius: 15%;
+    background: #e8dfca;
+    box-shadow: $offset $offset $blur #ccc4b2,
+      calc(-1 * $offset) calc(-1 * $offset) $blur #fffae2,
+      inset $offset $offset $blur transparent,
+      inset calc(-1 * $offset) calc(-1 * $offset) $blur transparent;
 
-		&.ready:active {
-			color: black;
-			border-radius: 15%;
-			background: #e8dfca;
-			box-shadow: $offset $offset $blur transparent,
-				calc(-1 * $offset) calc(-1 * $offset) $blur transparent,
-				inset $offset $offset $blur #ccc4b2,
-				inset calc(-1 * $offset) calc(-1 * $offset) $blur #fffae2;
-		}
-	}
+    &.ready:active {
+      box-shadow: $offset $offset $blur transparent,
+        calc(-1 * $offset) calc(-1 * $offset) $blur transparent,
+        inset $offset $offset $blur #ccc4b2,
+        inset calc(-1 * $offset) calc(-1 * $offset) $blur #fffae2;
+    }
+  }
 
-	@mixin red-button {
-		color: white !important;
-		border-radius: 15%;
-		background: #da2f2f;
-		box-shadow: $offset $offset $blur #ccc4b2,
-			calc(-1 * $offset) calc(-1 * $offset) $blur #fffae2,
-			inset $offset $offset $blur transparent,
-			inset calc(-1 * $offset) calc(-1 * $offset) $blur transparent;
+  @mixin red-button {
+    background: #da2f2f;
+    box-shadow: $offset $offset $blur #ccc4b2,
+      calc(-1 * $offset) calc(-1 * $offset) $blur #fffae2,
+      inset $offset $offset $blur transparent,
+      inset calc(-1 * $offset) calc(-1 * $offset) $blur transparent;
+  }
 
-		/* &:active {
-			color: white !important;
-			border-radius: 15%;
-			background: #da2f2f;
-			box-shadow: $offset $offset $blur transparent,
-				calc(-1 * $offset) calc(-1 * $offset) $blur transparent,
-				inset $offset $offset $blur #c02929,
-				inset calc(-1 * $offset) calc(-1 * $offset) $blur #f43535;
-		} */
-	}
+  .timeout.shake {
+    @keyframes shake {
+      0% {
+        transform: translateX(0) rotate(0);
+      }
 
-	/* .timeout {
-		// color: hsl(35, 34%, 45%);
-	} */
+      25% {
+        transform: translateX(10px) rotate(1deg);
+        @include red-button();
+      }
 
-	.timeout.shake {
-		@keyframes shake {
-			0% {
-				transform: translateX(0) rotate(0);
-			}
+      50% {
+        transform: translateX(-10px) rotate(-1deg);
+      }
 
-			25% {
-				transform: translateX(10px) rotate(1deg);
-				@include red-button();
-			}
+      75% {
+        transform: translateX(10px) rotate(1deg);
+      }
 
-			50% {
-				transform: translateX(-10px) rotate(-1deg);
-			}
+      100% {
+        transform: translateX(0) rotate(0);
+      }
+    }
 
-			75% {
-				transform: translateX(10px) rotate(1deg);
-			}
+    animation: shake 200ms;
+  }
 
-			100% {
-				transform: translateX(0) rotate(0);
-			}
-		}
+  button {
+    width: calc(min(400px, 97%) - 0.5rem);
+    aspect-ratio: 1;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    position: relative;
 
-		animation: shake 200ms;
-	}
+    font-family: "ubuntu";
+    color: rgba(0, 0, 0, 0.171);
+    font-size: 5em;
+    line-height: 1em;
+    // text-shadow: 2px 2px 2px #ccc4b2, -2px -2px 2px #fffae2;
+    overflow-wrap: break-word;
+    overflow: clip;
 
-	button {
-		width: calc(min(400px, 97%) - 0.5rem);
-		// margin: 1rem;
-		aspect-ratio: 1;
-		border: none;
-		cursor: pointer;
-		padding: 0;
-		position: relative;
+    @include tan-button();
 
-		font-family: "ubuntu";
-		color: rgba(0, 0, 0, 0.171);
-		font-size: 5em;
-		line-height: 1em;
-		// text-shadow: 2px 2px 2px #ccc4b2, -2px -2px 2px #fffae2;
-		overflow-wrap: break-word;
-		overflow: clip;
+    transition: color 400ms;
+  }
 
-		@include tan-button();
+  .progress {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.2);
 
-		transition: color 400ms;
-	}
+    transition: background-color 100ms;
 
-	.progress {
-		position: absolute;
-		right: 0;
-		top: 0;
-		bottom: 0;
-		background-color: rgba(0, 0, 0, 0.2);
+    &[data-progress="0"] {
+      background-color: transparent;
+    }
+  }
 
-		transition: background-color 100ms;
-
-		&[data-progress="0"] {
-			background-color: transparent;
-		}
-	}
-
-	button.ready {
-		color: black;
-	}
+  button.ready:not(.timeout) {
+    color: black;
+  }
 </style>

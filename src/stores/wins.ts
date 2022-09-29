@@ -4,7 +4,7 @@ const storedWins = localStorage.getItem("wins");
 
 let storedWinsNum: number;
 
-storedWinsNum = parseInt(storedWins) || 0;
+storedWinsNum = parseInt(storedWins, 10) || 0;
 
 export const wins = writable(storedWinsNum);
 

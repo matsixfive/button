@@ -20,7 +20,7 @@
 		margin: 0 auto;
 		background: #e8dfca;
 
-		transition: background-color 100ms ease-in-out;
+		transition: background-color 200ms ease-in-out;
 
 		&.flash {
 			background: #aebdca;
