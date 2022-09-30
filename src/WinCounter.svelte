@@ -24,6 +24,7 @@
 		color: white;
 		font-family: "ubuntu";
 		font-weight: bold;
+		margin-bottom: 0.1em;
 	}
 	
 	.inline {
